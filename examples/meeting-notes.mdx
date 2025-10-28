@@ -1,0 +1,564 @@
+---
+title: 'Intelligent Meeting Notes'
+description: 'Auto-generate meeting summaries with action items and insights'
+---
+
+## Overview
+
+Build a system that automatically processes meeting transcripts, extracts key information, identifies action items, and stores everything as searchable memories.
+
+**Key Features:**
+- 📝 Automatic transcript processing
+- ✅ Action item extraction
+- 👥 Participant tracking (VIP detection)
+- 🔗 Context linking (related meetings)
+- 📊 Meeting analytics
+
+---
+
+## Architecture
+
+```
+Transcript → Process → Extract Entities → Store Memories → Generate Summary
+```
+
+---
+
+## Implementation
+
+### Step 1: Process Meeting Transcript
+
+```typescript
+import { TinyBrainClient } from '@tinybrain/sdk';
+import OpenAI from 'openai';
+
+const client = new TinyBrainClient({
+  apiKey: process.env.TINYBRAIN_API_KEY!
+});
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!
+});
+
+interface MeetingData {
+  title: string;
+  date: string;
+  participants: string[];
+  transcript: string;
+  duration?: number;
+}
+
+async function processMeeting(meeting: MeetingData) {
+  // 1. Extract structured information
+  const extracted = await extractInformation(meeting.transcript);
+
+  // 2. Store main meeting memory
+  const meetingMemory = await client.memories.create({
+    content: `Meeting: ${meeting.title}
+Date: ${meeting.date}
+Participants: ${meeting.participants.join(', ')}
+
+Summary:
+${extracted.summary}`,
+    type: 'episodic',
+    importance: 0.8,
+    metadata: {
+      type: 'meeting',
+      title: meeting.title,
+      date: meeting.date,
+      participants: meeting.participants,
+      duration: meeting.duration,
+      category: 'meeting'
+    }
+  });
+
+  // 3. Store action items
+  for (const action of extracted.actionItems) {
+    await client.memories.create({
+      content: action.description,
+      type: 'procedural',
+      importance: 0.9,
+      metadata: {
+        type: 'action_item',
+        assignee: action.assignee,
+        dueDate: action.dueDate,
+        relatedMeetingId: meetingMemory.data.id,
+        status: 'pending'
+      }
+    });
+  }
+
+  // 4. Store key decisions
+  for (const decision of extracted.decisions) {
+    await client.memories.create({
+      content: decision,
+      type: 'semantic',
+      importance: 0.85,
+      metadata: {
+        type: 'decision',
+        meetingId: meetingMemory.data.id,
+        date: meeting.date
+      }
+    });
+  }
+
+  return {
+    meetingId: meetingMemory.data.id,
+    summary: extracted.summary,
+    actionItems: extracted.actionItems,
+    decisions: extracted.decisions
+  };
+}
+```
+
+---
+
+### Step 2: Extract Information with AI
+
+```typescript
+interface ExtractedInfo {
+  summary: string;
+  actionItems: Array<{
+    description: string;
+    assignee?: string;
+    dueDate?: string;
+  }>;
+  decisions: string[];
+  topics: string[];
+  keyPoints: string[];
+}
+
+async function extractInformation(transcript: string): Promise<ExtractedInfo> {
+  const prompt = `Analyze this meeting transcript and extract:
+1. A concise summary (2-3 sentences)
+2. All action items with assignees and due dates
+3. Key decisions made
+4. Main topics discussed
+5. Important points mentioned
+
+Transcript:
+${transcript}
+
+Return as JSON with this structure:
+{
+  "summary": "...",
+  "actionItems": [{"description": "...", "assignee": "...", "dueDate": "..."}],
+  "decisions": ["..."],
+  "topics": ["..."],
+  "keyPoints": ["..."]
+}`;
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'You are a meeting notes expert. Extract structured information from transcripts.' },
+      { role: 'user', content: prompt }
+    ],
+    response_format: { type: 'json_object' }
+  });
+
+  const result = JSON.parse(completion.choices[0]?.message?.content || '{}');
+  return result as ExtractedInfo;
+}
+```
+
+---
+
+### Step 3: Link Related Meetings
+
+```typescript
+async function findRelatedMeetings(
+  meetingTitle: string,
+  topics: string[]
+): Promise<any[]> {
+  const results = await client.memories.search({
+    query: `${meetingTitle} ${topics.join(' ')}`,
+    filters: {
+      type: 'episodic',
+      metadata: {
+        type: 'meeting'
+      }
+    },
+    limit: 5,
+    minSimilarity: 0.75
+  });
+
+  return results.data.results;
+}
+
+// Usage
+const related = await findRelatedMeetings(
+  'Q4 Product Planning',
+  ['roadmap', 'features', 'timeline']
+);
+
+console.log('Related meetings:', related.map(m => m.content));
+```
+
+---
+
+### Step 4: Track Action Item Completion
+
+```typescript
+async function updateActionItem(
+  actionItemId: string,
+  status: 'pending' | 'in_progress' | 'completed'
+) {
+  await client.memories.update(actionItemId, {
+    metadata: {
+      status,
+      completedAt: status === 'completed' ? Date.now() : undefined
+    }
+  });
+}
+
+async function getOpenActionItems(userId: string) {
+  const results = await client.memories.search({
+    query: 'action items tasks to do',
+    filters: {
+      type: 'procedural',
+      metadata: {
+        type: 'action_item',
+        assignee: userId,
+        status: { in: ['pending', 'in_progress'] }
+      }
+    },
+    sort: 'importance',
+    order: 'desc'
+  });
+
+  return results.data.results;
+}
+```
+
+---
+
+### Step 5: Generate Meeting Analytics
+
+```typescript
+interface MeetingAnalytics {
+  totalMeetings: number;
+  totalHours: number;
+  topParticipants: Array<{ name: string; count: number }>;
+  commonTopics: string[];
+  actionItemCompletion: number;
+}
+
+async function getMeetingAnalytics(
+  userId: string,
+  startDate: number,
+  endDate: number
+): Promise<MeetingAnalytics> {
+  // Get all meetings in date range
+  const meetings = await client.memories.search({
+    query: 'meetings',
+    filters: {
+      type: 'episodic',
+      metadata: {
+        type: 'meeting'
+      },
+      timestamp: {
+        gte: startDate,
+        lte: endDate
+      }
+    },
+    limit: 1000
+  });
+
+  // Get action items
+  const actionItems = await client.memories.search({
+    query: 'action items',
+    filters: {
+      type: 'procedural',
+      metadata: {
+        type: 'action_item'
+      }
+    },
+    limit: 1000
+  });
+
+  // Calculate analytics
+  const totalMeetings = meetings.data.results.length;
+  const totalHours = meetings.data.results.reduce(
+    (sum, m) => sum + (m.metadata?.duration || 0),
+    0
+  ) / 60;
+
+  // Count participants
+  const participantCounts = new Map<string, number>();
+  meetings.data.results.forEach(meeting => {
+    const participants = meeting.metadata?.participants || [];
+    participants.forEach((p: string) => {
+      participantCounts.set(p, (participantCounts.get(p) || 0) + 1);
+    });
+  });
+
+  const topParticipants = Array.from(participantCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Action item completion rate
+  const completed = actionItems.data.results.filter(
+    item => item.metadata?.status === 'completed'
+  ).length;
+  const actionItemCompletion = actionItems.data.results.length > 0
+    ? Math.round((completed / actionItems.data.results.length) * 100)
+    : 0;
+
+  return {
+    totalMeetings,
+    totalHours: Math.round(totalHours * 10) / 10,
+    topParticipants,
+    commonTopics: [],
+    actionItemCompletion
+  };
+}
+```
+
+---
+
+## Advanced Features
+
+### Pre-Meeting Briefing
+
+Generate a briefing before meetings based on related past meetings:
+
+```typescript
+async function generatePreMeetingBrief(
+  meetingTitle: string,
+  participants: string[]
+): Promise<string> {
+  // Find related meetings
+  const relatedMeetings = await client.memories.search({
+    query: meetingTitle,
+    filters: {
+      type: 'episodic',
+      metadata: {
+        type: 'meeting'
+      }
+    },
+    limit: 5
+  });
+
+  // Find open action items for participants
+  const actionItems = await client.memories.search({
+    query: 'action items',
+    filters: {
+      type: 'procedural',
+      metadata: {
+        type: 'action_item',
+        assignee: { in: participants },
+        status: { in: ['pending', 'in_progress'] }
+      }
+    }
+  });
+
+  // Generate brief
+  const prompt = `Generate a pre-meeting brief for: ${meetingTitle}
+
+Related past meetings:
+${relatedMeetings.data.results.map(m => `- ${m.content}`).join('\n')}
+
+Open action items:
+${actionItems.data.results.map(a => `- ${a.content}`).join('\n')}
+
+Include:
+1. Key context from past meetings
+2. Outstanding action items to review
+3. Suggested agenda topics`;
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'You are a meeting preparation assistant.' },
+      { role: 'user', content: prompt }
+    ]
+  });
+
+  return completion.choices[0]?.message?.content || '';
+}
+```
+
+---
+
+### Post-Meeting Follow-up
+
+Send automatic follow-up with action items:
+
+```typescript
+async function generateFollowUp(meetingId: string): Promise<string> {
+  // Get meeting
+  const meeting = await client.memories.get(meetingId);
+
+  // Get action items
+  const actionItems = await client.memories.search({
+    query: 'action items',
+    filters: {
+      type: 'procedural',
+      metadata: {
+        type: 'action_item',
+        relatedMeetingId: meetingId
+      }
+    }
+  });
+
+  // Generate follow-up email
+  const followUp = `
+Meeting Follow-up: ${meeting.data.metadata?.title}
+Date: ${meeting.data.metadata?.date}
+
+Summary:
+${meeting.data.content}
+
+Action Items:
+${actionItems.data.results.map((item, i) =>
+  `${i + 1}. ${item.content} (${item.metadata?.assignee || 'Unassigned'})`
+).join('\n')}
+
+Next Meeting: [Schedule a follow-up]
+`;
+
+  return followUp;
+}
+```
+
+---
+
+### Zoom/Google Meet Integration
+
+Integrate with video conferencing platforms:
+
+```typescript
+// Example: Process Zoom webhook
+async function handleZoomWebhook(payload: any) {
+  if (payload.event === 'recording.completed') {
+    const recording = payload.payload.object;
+
+    // Download transcript
+    const transcript = await downloadTranscript(recording.transcript_url);
+
+    // Process meeting
+    const result = await processMeeting({
+      title: recording.topic,
+      date: recording.start_time,
+      participants: recording.participant_audio_files.map((p: any) => p.file_name),
+      transcript
+    });
+
+    // Send follow-up
+    const followUp = await generateFollowUp(result.meetingId);
+    await sendEmail(recording.host_email, 'Meeting Summary', followUp);
+  }
+}
+```
+
+---
+
+## Full Example
+
+```typescript
+import { TinyBrainClient } from '@tinybrain/sdk';
+import OpenAI from 'openai';
+
+class MeetingAssistant {
+  constructor(
+    private client: TinyBrainClient,
+    private openai: OpenAI
+  ) {}
+
+  async processMeeting(meeting: MeetingData) {
+    console.log('Processing meeting:', meeting.title);
+
+    // Extract information
+    const extracted = await this.extractInformation(meeting.transcript);
+
+    // Store memories
+    const meetingId = await this.storeMeetingMemories(meeting, extracted);
+
+    // Find related meetings
+    const related = await this.findRelatedMeetings(meeting.title, extracted.topics);
+
+    // Generate summary
+    const summary = await this.generateSummary(meeting, extracted, related);
+
+    return {
+      meetingId,
+      summary,
+      actionItems: extracted.actionItems,
+      relatedMeetings: related
+    };
+  }
+
+  async generatePreMeetingBrief(title: string, participants: string[]) {
+    // Implementation from above
+  }
+
+  async generateFollowUp(meetingId: string) {
+    // Implementation from above
+  }
+
+  async getMeetingAnalytics(userId: string, days: number) {
+    const endDate = Date.now();
+    const startDate = endDate - days * 24 * 60 * 60 * 1000;
+    return await getMeetingAnalytics(userId, startDate, endDate);
+  }
+}
+
+// Usage
+const assistant = new MeetingAssistant(client, openai);
+
+// Before meeting
+const brief = await assistant.generatePreMeetingBrief(
+  'Q4 Product Planning',
+  ['sarah@company.com', 'john@company.com']
+);
+console.log('Pre-meeting brief:', brief);
+
+// After meeting
+const result = await assistant.processMeeting({
+  title: 'Q4 Product Planning',
+  date: '2025-10-28',
+  participants: ['Sarah', 'John', 'Alex'],
+  transcript: '...full transcript...',
+  duration: 60
+});
+
+// Send follow-up
+const followUp = await assistant.generateFollowUp(result.meetingId);
+console.log('Follow-up:', followUp);
+
+// View analytics
+const analytics = await assistant.getMeetingAnalytics('user_123', 30);
+console.log('Monthly analytics:', analytics);
+```
+
+---
+
+## Best Practices
+
+### ✅ Do:
+- Process transcripts within 1 hour of meeting end
+- Extract action items immediately
+- Link related meetings for context
+- Track action item completion
+- Generate follow-ups automatically
+
+### ❌ Don't:
+- Store full transcripts (use summaries)
+- Ignore participant privacy
+- Miss important decisions
+- Forget to update action item status
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Assistant Example" icon="robot" href="/examples/ai-assistant">
+    Build a memory-enabled chatbot
+  </Card>
+  <Card title="Webhooks Guide" icon="bell" href="/guides/webhooks">
+    Receive real-time notifications
+  </Card>
+</CardGroup>

@@ -1,0 +1,348 @@
+---
+title: 'Webhooks'
+description: 'Receive real-time notifications when memories and data change'
+---
+
+## Overview
+
+Webhooks allow your application to receive real-time notifications when events occur in TinyBrain. Instead of polling for changes, TinyBrain will push updates to your server.
+
+---
+
+## Supported Events
+
+| Event | Description |
+|-------|-------------|
+| `memory.created` | A new memory was created |
+| `memory.updated` | An existing memory was updated |
+| `memory.deleted` | A memory was deleted |
+| `integration.connected` | A new OAuth integration was connected |
+| `integration.disconnected` | An integration was disconnected |
+| `intelligence.vip_detected` | A new VIP was detected |
+| `intelligence.pattern_detected` | A new behavioral pattern was identified |
+| `usage.limit_warning` | Approaching usage limit (80%, 90%, 100%) |
+
+---
+
+## Creating a Webhook
+
+### Via API
+
+```typescript
+const webhook = await client.webhooks.create({
+  url: "https://your-app.com/webhooks/tinybrain",
+  events: ["memory.created", "memory.updated"],
+  secret: "your_webhook_secret"  // Optional but recommended
+});
+```
+
+### Via Dashboard
+
+1. Navigate to **API Platform** → **Webhooks**
+2. Click **Create Webhook**
+3. Enter your webhook URL
+4. Select events to subscribe to
+5. (Optional) Set a secret for signature verification
+6. Click **Create**
+
+---
+
+## Webhook Payload
+
+All webhooks send a POST request with this structure:
+
+```json
+{
+  "event": "memory.created",
+  "timestamp": 1698765432000,
+  "data": {
+    "id": "mem_abc123",
+    "content": "New memory content",
+    "type": "episodic",
+    "importance": 0.85,
+    "metadata": {}
+  },
+  "tenantId": "tenant_xyz"
+}
+```
+
+---
+
+## Event Examples
+
+### memory.created
+
+```json
+{
+  "event": "memory.created",
+  "timestamp": 1698765432000,
+  "data": {
+    "id": "mem_abc123",
+    "content": "Met with Sarah about Q4 planning",
+    "type": "episodic",
+    "importance": 0.87,
+    "metadata": {
+      "category": "meeting",
+      "participants": ["Sarah"]
+    }
+  },
+  "tenantId": "tenant_xyz"
+}
+```
+
+### intelligence.vip_detected
+
+```json
+{
+  "event": "intelligence.vip_detected",
+  "timestamp": 1698765432000,
+  "data": {
+    "name": "Sarah Johnson",
+    "mentions": 25,
+    "importance": 0.92,
+    "relationship": "colleague",
+    "firstMentioned": 1698000000000,
+    "lastMentioned": 1698765432000
+  },
+  "tenantId": "tenant_xyz"
+}
+```
+
+### usage.limit_warning
+
+```json
+{
+  "event": "usage.limit_warning",
+  "timestamp": 1698765432000,
+  "data": {
+    "metric": "memories",
+    "current": 800,
+    "limit": 1000,
+    "percentage": 80,
+    "resetDate": 1699000000000
+  },
+  "tenantId": "tenant_xyz"
+}
+```
+
+---
+
+## Verifying Webhooks
+
+### Signature Verification
+
+TinyBrain signs all webhooks with HMAC-SHA256. Verify the signature to ensure requests are authentic:
+
+```typescript
+import crypto from 'crypto';
+
+function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): boolean {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSignature)
+  );
+}
+
+// In your webhook handler
+app.post('/webhooks/tinybrain', (req, res) => {
+  const signature = req.headers['x-tinybrain-signature'];
+  const payload = JSON.stringify(req.body);
+
+  if (!verifyWebhookSignature(payload, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // Process webhook
+  console.log('Webhook verified:', req.body);
+  res.status(200).send('OK');
+});
+```
+
+---
+
+## Handling Webhooks
+
+### Express Example
+
+```typescript
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+app.post('/webhooks/tinybrain', async (req, res) => {
+  const { event, data, timestamp } = req.body;
+
+  try {
+    switch (event) {
+      case 'memory.created':
+        await handleMemoryCreated(data);
+        break;
+      case 'memory.updated':
+        await handleMemoryUpdated(data);
+        break;
+      case 'intelligence.vip_detected':
+        await handleVIPDetected(data);
+        break;
+      default:
+        console.log('Unhandled event:', event);
+    }
+
+    // Respond quickly (within 5 seconds)
+    res.status(200).send('OK');
+
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).send('Error processing webhook');
+  }
+});
+
+async function handleMemoryCreated(memory: any) {
+  console.log('New memory created:', memory.id);
+  // Your business logic here
+}
+```
+
+### Next.js API Route
+
+```typescript
+// app/api/webhooks/tinybrain/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { event, data } = body;
+
+  try {
+    if (event === 'memory.created') {
+      // Handle memory creation
+      await processNewMemory(data);
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Webhook processing failed' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+---
+
+## Retry Logic
+
+TinyBrain automatically retries failed webhooks with exponential backoff:
+
+- **Attempt 1**: Immediate
+- **Attempt 2**: After 30 seconds
+- **Attempt 3**: After 5 minutes
+- **Attempt 4**: After 30 minutes
+- **Attempt 5**: After 2 hours
+
+**Webhook is disabled after 5 failed attempts.**
+
+### Success Criteria
+
+A webhook is considered successful if:
+- Response status code is `200-299`
+- Response received within 5 seconds
+- No connection errors
+
+---
+
+## Testing Webhooks
+
+### Using Webhook.site
+
+1. Go to [webhook.site](https://webhook.site)
+2. Copy the unique URL
+3. Create a webhook in TinyBrain with that URL
+4. Trigger an event (e.g., create a memory)
+5. View the webhook payload on webhook.site
+
+### Local Testing with ngrok
+
+```bash
+# Start ngrok
+ngrok http 3000
+
+# Use the ngrok URL as your webhook endpoint
+https://abc123.ngrok.io/webhooks/tinybrain
+```
+
+---
+
+## Best Practices
+
+### ✅ Do:
+- Respond with 200 status code within 5 seconds
+- Verify webhook signatures
+- Process webhooks asynchronously (queue jobs)
+- Log all webhook events for debugging
+- Handle duplicate events (use idempotency keys)
+
+### ❌ Don't:
+- Perform long-running operations in the webhook handler
+- Return error codes for non-critical failures
+- Expose webhook URLs publicly without authentication
+- Ignore retry attempts
+
+---
+
+## Rate Limits
+
+- Maximum 100 webhook endpoints per account
+- Maximum 10,000 webhook deliveries per day (Free Tier)
+- Unlimited deliveries (Pro/Enterprise)
+
+---
+
+## Debugging
+
+### Check Webhook Logs
+
+View webhook delivery logs in the dashboard:
+
+1. Go to **API Platform** → **Webhooks**
+2. Click on a webhook
+3. View **Recent Deliveries**
+
+Logs include:
+- Timestamp
+- Event type
+- HTTP status code
+- Response time
+- Retry attempts
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Webhooks not received | Check firewall/security rules |
+| 401 Unauthorized | Verify signature correctly |
+| Timeouts | Respond faster, process async |
+| Duplicate events | Use idempotency keys |
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="OAuth Integrations" icon="plug" href="/guides/oauth-integrations">
+    Connect third-party apps
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    Complete API documentation
+  </Card>
+</CardGroup>

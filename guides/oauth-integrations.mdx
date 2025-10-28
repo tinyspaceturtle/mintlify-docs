@@ -1,0 +1,405 @@
+---
+title: 'OAuth Integrations'
+description: 'Connect Gmail, Calendar, Slack, and 250+ apps to TinyBrain'
+---
+
+## Overview
+
+TinyBrain integrates with 250+ apps via OAuth 2.0, allowing you to automatically sync data from your favorite tools into your memory system.
+
+**Currently Active Integrations:**
+- ✅ Gmail (Google)
+- ✅ Google Calendar
+- ✅ Slack
+- ✅ QuickBooks
+- ✅ Google Drive
+- ✅ Microsoft Outlook
+
+**Coming Soon:** 240+ more via [Nango](https://nango.dev)
+
+---
+
+## Connecting an Integration
+
+### Via Dashboard (Recommended)
+
+1. Navigate to **Integrations** in your dashboard
+2. Click **Connect** next to the integration you want
+3. Authorize the integration in the OAuth popup
+4. Wait for the success confirmation
+
+### Via API
+
+```typescript
+// Step 1: Get OAuth authorization URL
+const { authUrl } = await client.integrations.getAuthUrl({
+  provider: "gmail",
+  redirectUrl: "https://your-app.com/oauth/callback"
+});
+
+// Step 2: Redirect user to authUrl
+window.location.href = authUrl;
+
+// Step 3: Handle callback with authorization code
+const connection = await client.integrations.completeAuth({
+  provider: "gmail",
+  code: "authorization_code_from_callback"
+});
+```
+
+---
+
+## Available Integrations
+
+### Gmail
+
+**Permissions:**
+- Read emails
+- Read metadata (sender, subject, timestamp)
+- Access attachments
+
+**Automatic Memory Creation:**
+- Important emails automatically stored as memories
+- VIP detection from frequent senders
+- Email threads linked in memory graph
+
+```typescript
+// Check Gmail connection status
+const gmail = await client.integrations.getConnection("gmail");
+console.log(gmail.status); // "active" | "disconnected" | "error"
+```
+
+---
+
+### Google Calendar
+
+**Permissions:**
+- Read calendar events
+- Access event details (title, description, attendees)
+
+**Automatic Memory Creation:**
+- Past meetings stored as episodic memories
+- Upcoming meetings used for context
+- Attendees tracked for VIP detection
+
+```typescript
+// Sync recent calendar events
+await client.integrations.sync("google_calendar", {
+  startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Last 30 days
+  endDate: Date.now()
+});
+```
+
+---
+
+### Slack
+
+**Permissions:**
+- Read messages from channels you're in
+- Access direct messages
+- Read user profiles
+
+**Automatic Memory Creation:**
+- Important conversations stored as memories
+- Project-related discussions linked
+- Team members detected as VIPs
+
+```typescript
+// Get Slack connection
+const slack = await client.integrations.getConnection("slack");
+
+// Sync specific channels
+await client.integrations.sync("slack", {
+  channels: ["general", "engineering", "product"]
+});
+```
+
+---
+
+### QuickBooks
+
+**Permissions:**
+- Read invoices and expenses
+- Access customer data
+- View financial reports
+
+**Automatic Memory Creation:**
+- Key financial events stored
+- Customer interactions tracked
+- Payment milestones remembered
+
+---
+
+### Google Drive
+
+**Permissions:**
+- Read file metadata
+- Access shared files
+- View file contents
+
+**Automatic Memory Creation:**
+- Important documents indexed
+- Collaborative files tracked
+- File changes monitored
+
+---
+
+### Microsoft Outlook
+
+**Permissions:**
+- Read emails and calendar
+- Access contacts
+- View meeting details
+
+**Automatic Memory Creation:**
+- Similar to Gmail + Google Calendar
+- Unified email and calendar memories
+
+---
+
+## Managing Connections
+
+### List All Connections
+
+```typescript
+const connections = await client.integrations.listConnections();
+
+connections.forEach(conn => {
+  console.log(`${conn.provider}: ${conn.status}`);
+  console.log(`Connected: ${new Date(conn.connectedAt)}`);
+  console.log(`Last sync: ${new Date(conn.lastSyncAt)}`);
+});
+```
+
+### Disconnect an Integration
+
+```typescript
+await client.integrations.disconnect("gmail");
+```
+
+### Reconnect (Refresh Token)
+
+```typescript
+// If connection expires or has errors
+await client.integrations.reconnect("gmail");
+```
+
+---
+
+## Data Sync
+
+### Automatic Sync
+
+TinyBrain automatically syncs data from connected integrations:
+
+- **Gmail**: Every 15 minutes
+- **Calendar**: Every 30 minutes
+- **Slack**: Every 10 minutes
+- **QuickBooks**: Every 1 hour
+- **Drive**: Every 30 minutes
+- **Outlook**: Every 15 minutes
+
+### Manual Sync
+
+Trigger a sync manually:
+
+```typescript
+await client.integrations.sync("gmail");
+```
+
+### Sync Status
+
+Check when data was last synced:
+
+```typescript
+const connection = await client.integrations.getConnection("gmail");
+console.log('Last sync:', new Date(connection.lastSyncAt));
+console.log('Next sync:', new Date(connection.nextSyncAt));
+console.log('Items synced:', connection.totalItemsSynced);
+```
+
+---
+
+## Scopes & Permissions
+
+Each integration requests specific OAuth scopes:
+
+### Gmail Scopes
+```
+https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.metadata
+```
+
+### Google Calendar Scopes
+```
+https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/calendar.events.readonly
+```
+
+### Slack Scopes
+```
+channels:read
+channels:history
+users:read
+im:read
+im:history
+```
+
+**TinyBrain never requests write permissions by default.** We only read data to create memories.
+
+---
+
+## Security & Privacy
+
+### Data Handling
+
+- ✅ All data encrypted in transit (TLS 1.3)
+- ✅ OAuth tokens encrypted at rest
+- ✅ Multi-tenant isolation (your data is isolated from others)
+- ✅ Tokens automatically refreshed before expiration
+- ✅ Can disconnect and delete all synced data anytime
+
+### What TinyBrain Stores
+
+For each integrated item (email, event, message):
+- **Content**: Text content for memory creation
+- **Metadata**: Timestamp, sender, participants
+- **Embeddings**: AI-generated vectors for search
+- **Links**: References to original items (URLs)
+
+**What TinyBrain does NOT store:**
+- ❌ Raw OAuth tokens (only encrypted hashes)
+- ❌ Passwords
+- ❌ Payment information (except QuickBooks metadata)
+- ❌ Private files contents (only metadata)
+
+---
+
+## Webhooks from Integrations
+
+Receive real-time updates when integration data changes:
+
+```typescript
+await client.webhooks.create({
+  url: "https://your-app.com/webhooks",
+  events: [
+    "integration.data_synced",
+    "integration.new_email",
+    "integration.new_event"
+  ]
+});
+```
+
+**Example Webhook:**
+```json
+{
+  "event": "integration.new_email",
+  "timestamp": 1698765432000,
+  "data": {
+    "provider": "gmail",
+    "emailId": "msg_123",
+    "from": "sarah@company.com",
+    "subject": "Q4 Planning",
+    "memoryId": "mem_abc123"
+  }
+}
+```
+
+---
+
+## Rate Limits
+
+Integration syncing is subject to provider rate limits:
+
+| Provider | Rate Limit |
+|----------|------------|
+| Gmail | 250 requests/user/day (Google) |
+| Calendar | 1M requests/day (Google) |
+| Slack | 1 request/second (Slack) |
+| QuickBooks | 500 requests/minute (Intuit) |
+| Drive | 1000 requests/100 seconds (Google) |
+| Outlook | 10,000 requests/10 minutes (Microsoft) |
+
+TinyBrain automatically handles rate limiting and retries.
+
+---
+
+## Coming Soon (250+ More Apps)
+
+Via Nango integration platform:
+
+- **Productivity**: Notion, Asana, Trello, Monday.com
+- **Communication**: Discord, Microsoft Teams, Zoom
+- **CRM**: Salesforce, HubSpot, Pipedrive
+- **Dev Tools**: GitHub, GitLab, Jira, Linear
+- **Storage**: Dropbox, OneDrive, Box
+- **And 240+ more...**
+
+---
+
+## Troubleshooting
+
+### Connection Failed
+
+**Possible causes:**
+- User denied permissions
+- OAuth redirect URI mismatch
+- Token expired
+
+**Solution:**
+```typescript
+// Try reconnecting
+await client.integrations.reconnect("gmail");
+```
+
+### Sync Errors
+
+**Check sync logs:**
+```typescript
+const logs = await client.integrations.getSyncLogs("gmail", {
+  limit: 10
+});
+
+logs.forEach(log => {
+  if (log.status === 'error') {
+    console.error(`Sync failed: ${log.error}`);
+  }
+});
+```
+
+### Duplicate Memories
+
+If you see duplicate memories from integrations:
+
+1. Check deduplication settings
+2. Verify sync timestamps
+3. Contact support if issue persists
+
+---
+
+## Best Practices
+
+### ✅ Do:
+- Connect integrations you use daily
+- Review permissions before authorizing
+- Monitor sync status regularly
+- Disconnect unused integrations
+
+### ❌ Don't:
+- Share OAuth tokens
+- Connect personal accounts to shared workspaces
+- Sync more data than needed
+- Ignore connection errors
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Webhooks" icon="bell" href="/guides/webhooks">
+    Receive real-time notifications
+  </Card>
+  <Card title="Intelligence Layer" icon="brain" href="/core-concepts/intelligence-layer">
+    Learn about automatic insights
+  </Card>
+</CardGroup>

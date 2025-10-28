@@ -1,0 +1,214 @@
+---
+title: 'Storing Memories'
+description: 'Learn how to create and organize memories in TinyBrain'
+---
+
+## Overview
+
+TinyBrain's memory system is designed to store any type of information your AI needs to remember. Each memory is automatically embedded, indexed, and made searchable.
+
+---
+
+## Memory Types
+
+TinyBrain supports 4 core memory types:
+
+### Episodic (Events & Experiences)
+Store time-bound events, meetings, interactions, or experiences.
+
+```typescript
+await client.memories.create({
+  content: "Had a product review meeting with the design team. Discussed new dashboard redesign.",
+  type: "episodic",
+  metadata: {
+    date: "2025-10-28",
+    participants: ["Sarah", "Mike", "Alex"],
+    category: "meeting"
+  }
+});
+```
+
+### Procedural (How-to & Workflows)
+Store processes, procedures, templates, or workflows.
+
+```typescript
+await client.memories.create({
+  content: "To deploy: 1) Run tests 2) Build production 3) Push to main 4) Verify deployment",
+  type: "procedural",
+  metadata: {
+    category: "deployment",
+    domain: "engineering"
+  }
+});
+```
+
+### Semantic (Facts & Knowledge)
+Store facts, definitions, concepts, or general knowledge.
+
+```typescript
+await client.memories.create({
+  content: "Our company's mission: Make AI memory accessible to every developer.",
+  type: "semantic",
+  metadata: {
+    category: "company_info",
+    source: "website"
+  }
+});
+```
+
+### Identity (Preferences & Traits)
+Store user preferences, personality traits, or behavioral patterns.
+
+```typescript
+await client.memories.create({
+  content: "User prefers receiving updates via Slack rather than email.",
+  type: "identity",
+  metadata: {
+    category: "preferences",
+    userId: "user_123"
+  }
+});
+```
+
+---
+
+## Importance Scoring
+
+TinyBrain automatically calculates an importance score (0.0 to 1.0) for each memory using AI. You can also set it manually:
+
+```typescript
+await client.memories.create({
+  content: "Signed $500K enterprise contract with Acme Corp",
+  type: "episodic",
+  importance: 0.95,  // Manually set high importance
+  metadata: {
+    deal_value: 500000,
+    customer: "Acme Corp"
+  }
+});
+```
+
+**Importance affects:**
+- Search result ranking
+- Memory retention priority
+- Intelligence insights visibility
+
+---
+
+## Metadata & Tags
+
+Add structured metadata to make memories more searchable and filterable:
+
+```typescript
+await client.memories.create({
+  content: "Q3 revenue exceeded target by 15%",
+  type: "semantic",
+  metadata: {
+    quarter: "Q3",
+    year: 2025,
+    category: "finance",
+    metric_type: "revenue",
+    value: 1500000,
+    tags: ["revenue", "metrics", "success"]
+  }
+});
+```
+
+**Pro Tip:** Use consistent metadata keys across similar memories for better filtering.
+
+---
+
+## Batch Creation
+
+Create multiple memories at once for better performance:
+
+```typescript
+const memories = [
+  { content: "First memory", type: "episodic" },
+  { content: "Second memory", type: "semantic" },
+  { content: "Third memory", type: "procedural" }
+];
+
+await client.memories.createBatch(memories);
+```
+
+---
+
+## Automatic Embeddings
+
+TinyBrain automatically generates embeddings for every memory using `text-embedding-3-large`. No manual embedding required!
+
+**What happens behind the scenes:**
+1. Memory content is processed
+2. AI generates a 3072-dimensional embedding vector
+3. Vector is stored in Qdrant for fast semantic search
+4. Memory metadata is stored in PostgreSQL
+
+---
+
+## Deduplication
+
+TinyBrain automatically detects and prevents duplicate memories:
+
+```typescript
+// First memory
+await client.memories.create({
+  content: "Met with Sarah about Q4 planning"
+});
+
+// Duplicate (will be detected and flagged)
+await client.memories.create({
+  content: "Met with Sarah about Q4 planning"
+});
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "mem_existing123",
+    "isDuplicate": true,
+    "message": "Similar memory already exists"
+  }
+}
+```
+
+---
+
+## Memory Limits
+
+| Tier | Monthly Memories | Storage |
+|------|------------------|---------|
+| Free | 1,000 | 5 MB |
+| Pro | 100,000 | 1 GB |
+| Enterprise | Unlimited | Unlimited |
+
+---
+
+## Best Practices
+
+### ✅ Do:
+- Use descriptive, detailed content
+- Include relevant metadata
+- Choose appropriate memory types
+- Use consistent formatting
+
+### ❌ Don't:
+- Store PII without encryption
+- Create duplicate memories
+- Use overly generic content
+- Exceed content length limits (10KB per memory)
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Search Memories" icon="search" href="/guides/searching-memories">
+    Learn how to search and retrieve memories
+  </Card>
+  <Card title="Memory Types" icon="database" href="/core-concepts/memory-types">
+    Deep dive into memory types
+  </Card>
+</CardGroup>

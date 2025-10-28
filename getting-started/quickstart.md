@@ -9,8 +9,8 @@ TinyBrain is a memory infrastructure for AI applications. This guide will get yo
 
 ## Step 1: Get Your API Key
 
-1. Sign up at [app.tinybrain.dev](https://app.tinybrain.dev/signup)
-2. Navigate to **Settings → API Keys**
+1. Sign up at [tinybrainlab.ai](https://tinybrainlab.ai/sign-up)
+2. Navigate to **API Platform** in the dashboard
 3. Click **Create API Key**
 4. Copy your key (starts with `tb_`)
 

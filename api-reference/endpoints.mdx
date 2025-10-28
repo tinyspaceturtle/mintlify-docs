@@ -1,0 +1,409 @@
+---
+title: 'API Endpoints'
+description: 'Complete REST API reference for TinyBrain'
+---
+
+## Base URL
+
+```
+https://tinybrainlab.ai
+```
+
+All API requests must include your API key in the `Authorization` header:
+
+```bash
+Authorization: Bearer tb_your_api_key_here
+```
+
+---
+
+## Memories
+
+### Create Memory
+
+Store a new memory in your memory system.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://tinybrainlab.ai/api/v1/memories \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Met with Sarah about Q3 roadmap",
+    "type": "episodic",
+    "metadata": {
+      "category": "meeting",
+      "participants": ["Sarah"]
+    }
+  }'
+```
+
+```typescript TypeScript
+const memory = await client.memories.create({
+  content: "Met with Sarah about Q3 roadmap",
+  type: "episodic",
+  metadata: {
+    category: "meeting",
+    participants: ["Sarah"]
+  }
+});
+```
+
+```python Python
+memory = client.memories.create(
+    content="Met with Sarah about Q3 roadmap",
+    type="episodic",
+    metadata={
+        "category": "meeting",
+        "participants": ["Sarah"]
+    }
+)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "mem_abc123",
+    "content": "Met with Sarah about Q3 roadmap",
+    "type": "episodic",
+    "importance": 0.85,
+    "timestamp": 1698765432000,
+    "metadata": {
+      "category": "meeting",
+      "participants": ["Sarah"]
+    }
+  }
+}
+```
+
+---
+
+### Search Memories
+
+Search your memories using semantic or keyword search.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://tinybrainlab.ai/api/v1/memories/search \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "meetings with Sarah",
+    "limit": 10,
+    "type": "semantic"
+  }'
+```
+
+```typescript TypeScript
+const results = await client.memories.search({
+  query: "meetings with Sarah",
+  limit: 10,
+  type: "semantic"
+});
+```
+
+```python Python
+results = client.memories.search(
+    query="meetings with Sarah",
+    limit=10,
+    type="semantic"
+)
+```
+
+</CodeGroup>
+
+**Parameters:**
+
+- `query` (string, required): Search query
+- `limit` (number, optional): Max results (default: 10, max: 100)
+- `type` (string, optional): `"semantic"` or `"keyword"` (default: `"semantic"`)
+- `filters` (object, optional): Filter by metadata fields
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "id": "mem_abc123",
+        "content": "Met with Sarah about Q3 roadmap",
+        "similarity": 0.95,
+        "importance": 0.85,
+        "timestamp": 1698765432000
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+---
+
+### Get Memory
+
+Retrieve a specific memory by ID.
+
+<CodeGroup>
+
+```bash cURL
+curl https://tinybrainlab.ai/api/v1/memories/mem_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+const memory = await client.memories.get("mem_abc123");
+```
+
+```python Python
+memory = client.memories.get("mem_abc123")
+```
+
+</CodeGroup>
+
+---
+
+### Update Memory
+
+Update an existing memory.
+
+<CodeGroup>
+
+```bash cURL
+curl -X PATCH https://tinybrainlab.ai/api/v1/memories/mem_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Updated content",
+    "metadata": {
+      "status": "reviewed"
+    }
+  }'
+```
+
+```typescript TypeScript
+const updated = await client.memories.update("mem_abc123", {
+  content: "Updated content",
+  metadata: { status: "reviewed" }
+});
+```
+
+```python Python
+updated = client.memories.update(
+    "mem_abc123",
+    content="Updated content",
+    metadata={"status": "reviewed"}
+)
+```
+
+</CodeGroup>
+
+---
+
+### Delete Memory
+
+Delete a memory permanently.
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://tinybrainlab.ai/api/v1/memories/mem_abc123 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+await client.memories.delete("mem_abc123");
+```
+
+```python Python
+client.memories.delete("mem_abc123")
+```
+
+</CodeGroup>
+
+---
+
+## Intelligence
+
+### Get VIPs
+
+Retrieve detected VIPs (important people) from your memories.
+
+<CodeGroup>
+
+```bash cURL
+curl https://tinybrainlab.ai/api/v1/intelligence/vips \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+const vips = await client.intelligence.getVIPs();
+```
+
+```python Python
+vips = client.intelligence.get_vips()
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "vips": [
+      {
+        "name": "Sarah Johnson",
+        "mentions": 42,
+        "lastMentioned": 1698765432000,
+        "importance": 0.92,
+        "relationship": "colleague"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Integrations
+
+### List Connections
+
+Get all OAuth connections for the current user.
+
+<CodeGroup>
+
+```bash cURL
+curl https://tinybrainlab.ai/api/v1/integrations/connections \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+const connections = await client.integrations.listConnections();
+```
+
+```python Python
+connections = client.integrations.list_connections()
+```
+
+</CodeGroup>
+
+---
+
+### Connect Integration
+
+Initiate OAuth flow for an integration.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://tinybrainlab.ai/api/v1/integrations/connect \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "gmail"
+  }'
+```
+
+```typescript TypeScript
+const authUrl = await client.integrations.connect("gmail");
+// Redirect user to authUrl
+```
+
+```python Python
+auth_url = client.integrations.connect("gmail")
+# Redirect user to auth_url
+```
+
+</CodeGroup>
+
+---
+
+## Webhooks
+
+### Create Webhook
+
+Register a webhook endpoint to receive events.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://tinybrainlab.ai/api/v1/webhooks \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhook",
+    "events": ["memory.created", "memory.updated"]
+  }'
+```
+
+```typescript TypeScript
+const webhook = await client.webhooks.create({
+  url: "https://your-app.com/webhook",
+  events: ["memory.created", "memory.updated"]
+});
+```
+
+```python Python
+webhook = client.webhooks.create(
+    url="https://your-app.com/webhook",
+    events=["memory.created", "memory.updated"]
+)
+```
+
+</CodeGroup>
+
+---
+
+## Rate Limits
+
+All API endpoints are rate limited:
+
+- **Free Tier**: 100 requests/minute
+- **Pro Tier**: 1,000 requests/minute
+- **Enterprise**: Custom limits
+
+Rate limit headers are included in every response:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1698765432
+```
+
+---
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Invalid API key |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource doesn't exist |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error |
+
+**Error Response Format:**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Missing required field: content",
+    "details": {}
+  }
+}
+```

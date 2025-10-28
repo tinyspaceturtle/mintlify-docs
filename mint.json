@@ -46,9 +46,26 @@
       ]
     },
     {
+      "group": "Guides",
+      "pages": [
+        "guides/storing-memories",
+        "guides/searching-memories",
+        "guides/webhooks",
+        "guides/oauth-integrations"
+      ]
+    },
+    {
       "group": "API Reference",
       "pages": [
-        "api-reference/introduction"
+        "api-reference/introduction",
+        "api-reference/endpoints"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/ai-assistant",
+        "examples/meeting-notes"
       ]
     },
     {
@@ -65,6 +82,10 @@
     "baseUrl": "https://tinybrainlab.ai",
     "auth": {
       "method": "bearer"
+    },
+    "playground": {
+      "mode": "simple"
     }
-  }
+  },
+  "openapi": "api-reference/openapi.json"
 }

@@ -1,0 +1,324 @@
+---
+title: 'Searching Memories'
+description: 'Master semantic and keyword search in TinyBrain'
+---
+
+## Overview
+
+TinyBrain offers two powerful search methods: **semantic search** (meaning-based) and **keyword search** (exact matches). Both return ranked results with similarity scores.
+
+---
+
+## Semantic Search
+
+Semantic search uses AI embeddings to find memories by meaning, not just keywords.
+
+### Basic Search
+
+```typescript
+const results = await client.memories.search({
+  query: "meetings about product roadmap",
+  limit: 10
+});
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "id": "mem_abc123",
+        "content": "Discussed Q4 product priorities with engineering team",
+        "similarity": 0.94,
+        "importance": 0.85,
+        "type": "episodic",
+        "timestamp": 1698765432000
+      },
+      {
+        "id": "mem_def456",
+        "content": "Sarah shared updated roadmap timeline for mobile app",
+        "similarity": 0.89,
+        "importance": 0.78,
+        "type": "procedural",
+        "timestamp": 1698765000000
+      }
+    ],
+    "total": 2
+  }
+}
+```
+
+---
+
+## Keyword Search
+
+Keyword search finds exact or fuzzy text matches.
+
+```typescript
+const results = await client.memories.search({
+  query: "Sarah",
+  type: "keyword"
+});
+```
+
+**When to use keyword search:**
+- Searching for specific names, IDs, or codes
+- Exact phrase matching
+- Technical terms or abbreviations
+
+---
+
+## Filters
+
+Narrow down results using metadata filters:
+
+### Filter by Type
+
+```typescript
+const results = await client.memories.search({
+  query: "project updates",
+  filters: {
+    type: "episodic"
+  }
+});
+```
+
+### Filter by Date Range
+
+```typescript
+const results = await client.memories.search({
+  query: "team meetings",
+  filters: {
+    timestamp: {
+      gte: Date.now() - 7 * 24 * 60 * 60 * 1000, // Last 7 days
+      lte: Date.now()
+    }
+  }
+});
+```
+
+### Filter by Metadata
+
+```typescript
+const results = await client.memories.search({
+  query: "revenue metrics",
+  filters: {
+    metadata: {
+      category: "finance",
+      year: 2025
+    }
+  }
+});
+```
+
+### Combined Filters
+
+```typescript
+const results = await client.memories.search({
+  query: "engineering discussions",
+  filters: {
+    type: "episodic",
+    metadata: {
+      department: "engineering",
+      priority: "high"
+    },
+    importance: { gte: 0.7 }
+  },
+  limit: 20
+});
+```
+
+---
+
+## Similarity Threshold
+
+Control result quality by setting a minimum similarity score:
+
+```typescript
+const results = await client.memories.search({
+  query: "customer feedback",
+  minSimilarity: 0.8  // Only return results with 80%+ similarity
+});
+```
+
+**Recommended thresholds:**
+- `0.9+` - Very high precision (may miss some results)
+- `0.8-0.9` - Balanced (recommended)
+- `0.7-0.8` - High recall (may include less relevant results)
+- `<0.7` - Very broad
+
+---
+
+## Sorting
+
+Sort results by different criteria:
+
+### By Similarity (Default)
+
+```typescript
+const results = await client.memories.search({
+  query: "project updates",
+  sort: "similarity"  // Highest similarity first
+});
+```
+
+### By Importance
+
+```typescript
+const results = await client.memories.search({
+  query: "project updates",
+  sort: "importance"  // Most important first
+});
+```
+
+### By Recency
+
+```typescript
+const results = await client.memories.search({
+  query: "project updates",
+  sort: "timestamp",
+  order: "desc"  // Most recent first
+});
+```
+
+---
+
+## Pagination
+
+Handle large result sets with pagination:
+
+```typescript
+// Page 1
+const page1 = await client.memories.search({
+  query: "all meetings",
+  limit: 50,
+  offset: 0
+});
+
+// Page 2
+const page2 = await client.memories.search({
+  query: "all meetings",
+  limit: 50,
+  offset: 50
+});
+```
+
+---
+
+## Hybrid Search
+
+Combine semantic and keyword search for best results:
+
+```typescript
+const results = await client.memories.search({
+  query: "product roadmap Q4",
+  type: "hybrid",
+  hybridWeight: 0.7  // 70% semantic, 30% keyword
+});
+```
+
+---
+
+## Context-Aware Search
+
+Use previous results as context for better relevance:
+
+```typescript
+const results = await client.memories.search({
+  query: "What did we decide?",
+  context: ["mem_abc123", "mem_def456"],  // Previous conversation memories
+  limit: 5
+});
+```
+
+---
+
+## Search Performance
+
+**Average latency:**
+- Semantic search: 50-100ms (P95: 100ms)
+- Keyword search: 10-30ms (P95: 50ms)
+- Hybrid search: 60-120ms (P95: 150ms)
+
+**Tips for faster searches:**
+- Use filters to reduce search space
+- Lower `limit` for quicker results
+- Use keyword search when possible
+
+---
+
+## Examples
+
+### Find All Meetings with a Person
+
+```typescript
+const results = await client.memories.search({
+  query: "meetings with Sarah",
+  filters: {
+    type: "episodic",
+    metadata: {
+      participants: { includes: "Sarah" }
+    }
+  }
+});
+```
+
+### Find Recent High-Priority Items
+
+```typescript
+const results = await client.memories.search({
+  query: "urgent action items",
+  filters: {
+    importance: { gte: 0.8 },
+    timestamp: { gte: Date.now() - 3 * 24 * 60 * 60 * 1000 }
+  },
+  sort: "importance"
+});
+```
+
+### Find Similar Memories to One
+
+```typescript
+// Get a memory
+const memory = await client.memories.get("mem_abc123");
+
+// Find similar ones
+const similar = await client.memories.search({
+  query: memory.content,
+  filters: {
+    id: { ne: "mem_abc123" }  // Exclude the original
+  },
+  limit: 5
+});
+```
+
+---
+
+## Best Practices
+
+### ✅ Do:
+- Use semantic search for conceptual queries
+- Add filters to improve precision
+- Set appropriate similarity thresholds
+- Paginate large result sets
+
+### ❌ Don't:
+- Request more results than needed
+- Use overly broad queries without filters
+- Search without handling empty results
+- Ignore similarity scores
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Memory Types" icon="database" href="/core-concepts/memory-types">
+    Understand different memory types
+  </Card>
+  <Card title="Intelligence Layer" icon="brain" href="/core-concepts/intelligence-layer">
+    Learn about automatic insights
+  </Card>
+</CardGroup>

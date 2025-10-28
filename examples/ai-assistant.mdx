@@ -1,0 +1,460 @@
+---
+title: 'AI Assistant with Memory'
+description: 'Build an AI assistant that remembers context across conversations'
+---
+
+## Overview
+
+Build an intelligent AI assistant that maintains conversation history, learns user preferences, and provides context-aware responses using TinyBrain's memory system.
+
+**Key Features:**
+- 💬 Persistent conversation history
+- 🧠 Context-aware responses
+- 👤 User preference learning
+- 🔍 Semantic memory search
+- 🎯 Intelligent routing (OpenAI + Groq)
+
+---
+
+## Architecture
+
+```
+User Query → Search Relevant Memories → Add Context → LLM → Store Response → Return
+```
+
+---
+
+## Implementation
+
+### Step 1: Initialize TinyBrain Client
+
+```typescript
+import { TinyBrainClient } from '@tinybrain/sdk';
+
+const client = new TinyBrainClient({
+  apiKey: process.env.TINYBRAIN_API_KEY!,
+  baseUrl: 'https://tinybrainlab.ai'
+});
+```
+
+---
+
+### Step 2: Store User Messages
+
+```typescript
+async function storeUserMessage(userId: string, message: string) {
+  await client.memories.create({
+    content: message,
+    type: 'episodic',
+    importance: 0.7,
+    metadata: {
+      role: 'user',
+      userId,
+      timestamp: Date.now(),
+      category: 'conversation'
+    }
+  });
+}
+```
+
+---
+
+### Step 3: Search Relevant Context
+
+```typescript
+async function getRelevantContext(query: string, userId: string, limit = 5) {
+  const results = await client.memories.search({
+    query,
+    filters: {
+      metadata: {
+        userId,
+        category: 'conversation'
+      }
+    },
+    limit,
+    minSimilarity: 0.7
+  });
+
+  return results.data.results.map(r => r.content).join('\n\n');
+}
+```
+
+---
+
+### Step 4: Generate AI Response
+
+```typescript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!
+});
+
+async function generateResponse(
+  userMessage: string,
+  context: string
+): Promise<string> {
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: `You are a helpful AI assistant with access to conversation history.
+
+Context from previous conversations:
+${context}
+
+Use this context to provide personalized, relevant responses.`
+      },
+      {
+        role: 'user',
+        content: userMessage
+      }
+    ],
+    temperature: 0.7,
+    max_tokens: 500
+  });
+
+  return completion.choices[0]?.message?.content || 'No response generated';
+}
+```
+
+---
+
+### Step 5: Store AI Response
+
+```typescript
+async function storeAssistantResponse(
+  userId: string,
+  message: string,
+  importance = 0.6
+) {
+  await client.memories.create({
+    content: message,
+    type: 'episodic',
+    importance,
+    metadata: {
+      role: 'assistant',
+      userId,
+      timestamp: Date.now(),
+      category: 'conversation'
+    }
+  });
+}
+```
+
+---
+
+### Step 6: Put It All Together
+
+```typescript
+async function chat(userId: string, userMessage: string): Promise<string> {
+  // 1. Store user message
+  await storeUserMessage(userId, userMessage);
+
+  // 2. Get relevant context
+  const context = await getRelevantContext(userMessage, userId);
+
+  // 3. Generate AI response
+  const response = await generateResponse(userMessage, context);
+
+  // 4. Store assistant response
+  await storeAssistantResponse(userId, response);
+
+  // 5. Return response
+  return response;
+}
+
+// Usage
+const response = await chat('user_123', 'What did we discuss about the product launch?');
+console.log(response);
+```
+
+---
+
+## Advanced Features
+
+### User Preference Learning
+
+Store and retrieve user preferences:
+
+```typescript
+async function learnPreference(userId: string, preference: string) {
+  await client.memories.create({
+    content: preference,
+    type: 'identity',
+    importance: 0.9,
+    metadata: {
+      userId,
+      category: 'preference',
+      timestamp: Date.now()
+    }
+  });
+}
+
+async function getUserPreferences(userId: string) {
+  const results = await client.memories.search({
+    query: 'user preferences and settings',
+    filters: {
+      type: 'identity',
+      metadata: {
+        userId,
+        category: 'preference'
+      }
+    },
+    limit: 10
+  });
+
+  return results.data.results.map(r => r.content);
+}
+```
+
+---
+
+### VIP Detection
+
+Identify important people mentioned in conversations:
+
+```typescript
+async function getVIPs(userId: string) {
+  const vips = await client.intelligence.getVIPs({
+    tenantId: userId,
+    minMentions: 5
+  });
+
+  return vips.data.vips;
+}
+
+// Use VIPs to enhance responses
+async function chatWithVIPContext(userId: string, message: string) {
+  const vips = await getVIPs(userId);
+  const vipContext = vips.map(v =>
+    `${v.name} - mentioned ${v.mentions} times, ${v.relationship}`
+  ).join('\n');
+
+  // Include VIP context in system prompt
+  // ...
+}
+```
+
+---
+
+### Streaming Responses
+
+Stream AI responses in real-time:
+
+```typescript
+async function* chatStream(userId: string, message: string) {
+  // Store user message
+  await storeUserMessage(userId, message);
+
+  // Get context
+  const context = await getRelevantContext(message, userId);
+
+  // Stream response
+  const stream = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: `Context:\n${context}` },
+      { role: 'user', content: message }
+    ],
+    stream: true
+  });
+
+  let fullResponse = '';
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content || '';
+    fullResponse += content;
+    yield content;
+  }
+
+  // Store complete response
+  await storeAssistantResponse(userId, fullResponse);
+}
+
+// Usage
+for await (const chunk of chatStream('user_123', 'Tell me about...')) {
+  process.stdout.write(chunk);
+}
+```
+
+---
+
+### Intelligent Model Routing
+
+Route queries to OpenAI or Groq based on complexity:
+
+```typescript
+import Groq from 'groq-sdk';
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!
+});
+
+async function determineComplexity(message: string): Promise<'simple' | 'complex'> {
+  // Simple heuristic (can be improved with ML)
+  const wordCount = message.split(' ').length;
+  const hasQuestion = message.includes('?');
+  const hasMultipleQuestions = (message.match(/\?/g) || []).length > 1;
+
+  if (hasMultipleQuestions || wordCount > 50) {
+    return 'complex';
+  }
+  return 'simple';
+}
+
+async function chatWithRouting(userId: string, message: string) {
+  const context = await getRelevantContext(message, userId);
+  const complexity = await determineComplexity(message);
+
+  if (complexity === 'simple') {
+    // Use Groq (faster, cheaper)
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.1-70b-versatile',
+      messages: [
+        { role: 'system', content: `Context:\n${context}` },
+        { role: 'user', content: message }
+      ]
+    });
+    return response.choices[0]?.message?.content;
+  } else {
+    // Use OpenAI (more capable)
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: `Context:\n${context}` },
+        { role: 'user', content: message }
+      ]
+    });
+    return response.choices[0]?.message?.content;
+  }
+}
+```
+
+---
+
+## Full Example
+
+```typescript
+import { TinyBrainClient } from '@tinybrain/sdk';
+import OpenAI from 'openai';
+
+class MemoryAI {
+  constructor(
+    private client: TinyBrainClient,
+    private openai: OpenAI
+  ) {}
+
+  async chat(userId: string, message: string): Promise<string> {
+    // Store user message
+    await this.storeMessage(userId, message, 'user');
+
+    // Get conversation history and preferences
+    const [history, preferences, vips] = await Promise.all([
+      this.getRecentHistory(userId, 10),
+      this.getUserPreferences(userId),
+      this.getVIPs(userId)
+    ]);
+
+    // Build context
+    const context = this.buildContext(history, preferences, vips);
+
+    // Generate response
+    const response = await this.generateResponse(message, context);
+
+    // Store assistant response
+    await this.storeMessage(userId, response, 'assistant');
+
+    return response;
+  }
+
+  private async storeMessage(
+    userId: string,
+    content: string,
+    role: 'user' | 'assistant'
+  ) {
+    await this.client.memories.create({
+      content,
+      type: 'episodic',
+      importance: role === 'user' ? 0.7 : 0.6,
+      metadata: { userId, role, timestamp: Date.now() }
+    });
+  }
+
+  private async getRecentHistory(userId: string, limit: number) {
+    const results = await this.client.memories.search({
+      query: 'recent conversations',
+      filters: { metadata: { userId } },
+      limit,
+      sort: 'timestamp',
+      order: 'desc'
+    });
+    return results.data.results;
+  }
+
+  private async getUserPreferences(userId: string) {
+    const results = await this.client.memories.search({
+      query: 'user preferences',
+      filters: {
+        type: 'identity',
+        metadata: { userId }
+      }
+    });
+    return results.data.results;
+  }
+
+  private async getVIPs(userId: string) {
+    const vips = await this.client.intelligence.getVIPs({
+      tenantId: userId,
+      minMentions: 3
+    });
+    return vips.data.vips;
+  }
+
+  private buildContext(history: any[], preferences: any[], vips: any[]) {
+    let context = 'Recent conversations:\n';
+    context += history.map(h => `- ${h.content}`).join('\n');
+    context += '\n\nUser preferences:\n';
+    context += preferences.map(p => `- ${p.content}`).join('\n');
+    context += '\n\nImportant people:\n';
+    context += vips.map(v => `- ${v.name} (${v.relationship})`).join('\n');
+    return context;
+  }
+
+  private async generateResponse(message: string, context: string) {
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a helpful, memory-enabled AI assistant.
+
+${context}
+
+Use this information to provide personalized, contextual responses.`
+        },
+        { role: 'user', content: message }
+      ]
+    });
+    return completion.choices[0]?.message?.content || '';
+  }
+}
+
+// Usage
+const ai = new MemoryAI(client, openai);
+const response = await ai.chat('user_123', 'What did Sarah say about the launch?');
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Meeting Notes Example" icon="calendar" href="/examples/meeting-notes">
+    Auto-generate intelligent meeting summaries
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    Complete API documentation
+  </Card>
+</CardGroup>
