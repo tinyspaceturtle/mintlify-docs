@@ -1,0 +1,101 @@
+{
+  "name": "TinyBrain",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#1E40AF",
+    "anchors": {
+      "from": "#3B82F6",
+      "to": "#1E40AF"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Dashboard",
+      "url": "https://tinybrainlab.ai"
+    },
+    {
+      "name": "GitHub",
+      "url": "https://github.com/tinyspaceturtle/TinyBrain-Alpha"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "https://tinybrainlab.ai/sign-up"
+  },
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "getting-started/quickstart",
+        "getting-started/installation",
+        "getting-started/authentication"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "core-concepts/memory-types",
+        "core-concepts/semantic-search",
+        "core-concepts/intelligence-layer",
+        "core-concepts/multi-tenant",
+        "core-concepts/architecture"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/storing-memories",
+        "guides/searching-memories",
+        "guides/webhooks",
+        "guides/oauth-integrations",
+        "guides/importance-prediction",
+        "guides/behavioral-learning",
+        "guides/batch-operations"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/rest-api",
+        "api-reference/typescript-sdk",
+        "api-reference/python-sdk",
+        "api-reference/rate-limits",
+        "api-reference/error-codes"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/ai-assistant",
+        "examples/meeting-notes",
+        "examples/knowledge-base",
+        "examples/customer-support"
+      ]
+    },
+    {
+      "group": "Resources",
+      "pages": [
+        "resources/faq",
+        "resources/troubleshooting",
+        "resources/best-practices",
+        "resources/migration-guide",
+        "resources/changelog"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/tinyspaceturtle/TinyBrain-Alpha"
+  },
+  "api": {
+    "baseUrl": "https://tinybrainlab.ai",
+    "auth": {
+      "method": "bearer"
+    }
+  }
+}
